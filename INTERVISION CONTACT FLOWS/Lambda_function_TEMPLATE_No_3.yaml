@@ -1,0 +1,913 @@
+# This template creates all the lambda functions needed
+
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  destinationLangCode:
+    Description: Second language used in the IVR
+    Type: String
+    Default: fr-FR
+    AllowedValues:
+      - fr-FR
+      - en-US
+  sourceLangCode:
+    Description: First language used in the IVR
+    Type: String
+    Default: en-US
+    AllowedValues:
+      - fr-FR
+      - en-US
+Mappings:
+  RoleNameMap:
+    RoleName:
+      Name: IntervisionLambdaRole
+  LambdaFunctionMap:
+    Lambda1:
+      FunctionName: IntervisionLambda_Central
+    Lambda2:
+      FunctionName: InterVision_Queue_contact_Att_Func
+    Lambda3:
+      FunctionName: intervision_call_back_function
+    Lambda4:
+      FunctionName: iIntervision-language-selection
+    Lambda5:
+      FunctionName: IntervisionCallback_function-2
+    Lambda6:
+      FunctionName: InterVision_callback_flow_lambda
+    Lambda7:
+      FunctionName: INTERVISIONOutbound_campaign
+    Lambda8:
+      FunctionName: Intervision_save_outbound_campain
+    Lambda9:
+      FunctionName: Intervision_staff_verification
+    Lambda10:
+      FunctionName: INtervision_Outbound_campain_calls
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Description: Used in creating lambda functions
+        ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/AmazonS3FullAccess
+            - arn:aws:iam::aws:policy/CloudWatchFullAccess
+            - arn:aws:iam::aws:policy/AmazonConnect_FullAccess
+            - arn:aws:iam::aws:policy/AmazonPollyFullAccess
+            - arn:aws:iam::aws:policy/TranslateFullAccess
+        RoleName: !FindInMap
+            - RoleNameMap
+            - RoleName
+            - Name
+  LambdaFunction1:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda1
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('translate')
+          client2 = boto3.client('connect')
+          client3 = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Edit environment variable for other languages
+              # Gets language code from environment variables
+              source_lang_code = os.environ.get('source_lang_code')
+              target_lang_code = os.environ.get('destination_lang_code')
+              data = text_to_translate(source_lang_code,target_lang_code)   # Translates given text in a list
+          # Creates contact Attributes for both languages
+              data_languages = data_to_translate_1()
+              lang_1_contact_attributes = data_languages[1]
+              lang_2_contact_attributes = data_languages[2]
+              # creates contact attributes for first language
+              language_control = event['Details']['Parameters']['language_control']
+              if data[0] == 1:
+                  index_1 = 0
+                  # creates contact attribute for first language
+                  for Att in lang_1_contact_attributes:
+                      if language_control == '1':
+                          text_value = data[1][index_1]
+                          updating1= update_contact_func(event,Att, text_value)
+                          index_1 += 1
+                  index_2 = 0
+              # creates contact attribute for second language
+                  for Att1 in lang_2_contact_attributes:
+                      if language_control == '2':
+                          text_value1 = data[2][index_2]
+                          updating1= update_contact_func(event,Att1, text_value1)
+                          index_2 += 1
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Success')
+              }
+          def data_to_translate_1():
+              # data from file to translate
+              # Number of attributes should match number of data
+              data =  ['1, Cloud Services, 2, Contact Center, 3 Cybersecurity, 4, Data and Generative AI, 5, Enterprise Management, 6, General Questions,7, Employee Query',"Selection please"]
+              # contact attribute names can be edited for use case
+              lang1_contact_attributes = ["prompt", "request"]   # contact attribute name for language 1
+              lang2_contact_attributes = ["prompt", "request"]   # contact attribute name for language 2
+              if len(data) == len(lang1_contact_attributes) and len(data) == len(lang2_contact_attributes):
+                  return [data, lang1_contact_attributes, lang2_contact_attributes]
+          def text_to_translate(source_lang_code, target_lang_code):   # text_to_translate is a list of text
+              """
+              translates original text to target language
+              0: implies failure
+              1: implies success
+              """
+              original_text = data_to_translate_1()[0]  # list of text to be translated
+              translated_text = []
+              try:
+                  if len(original_text) == 0:
+                      return [0]
+                  elif len(original_text) > 0:
+                      for text in original_text:
+                          translation = compile_translation(text ,source_lang_code,target_lang_code)   # translates the text
+                          translated_text.append(translation)
+                      return [1, original_text, translated_text]
+              except ValueError:
+                  return [0]
+              except TypeError:
+                  return [0]
+          def compile_translation(text_to_translate_en,source_lang_code, target):
+              # Text translated from English to target language or languages.
+              translated_text = translate_text(source_lang_code,target , text_to_translate_en)['TranslatedText']
+              modified_text = f"{translated_text}"
+              return modified_text
+          def translate_text(source_lang_code, target_lang_code, text_to_translate):
+              "Translates from source language to destination language"
+              response = client.translate_text(
+              Text=f'{text_to_translate}',
+              SourceLanguageCode=f'{source_lang_code}',
+              TargetLanguageCode=f'{target_lang_code}',
+              Settings={
+                  'Formality': 'FORMAL',
+                  'Profanity': 'MASK',
+                  'Brevity': 'ON'})
+              return response
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client2.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+  LambdaFunction2:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda2
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('connect')
+          def lambda_handler(event, context):
+              instance_id = "1849df04-e6e3-4ee0-ba9a-60f9367efcf6"
+              list_of_queues = list_queues(event)
+              list_names = list_of_queues[0]
+              list_arns = list_of_queues[1]
+              extracted_standard_arn_in_order = []
+              extracted_callback_arn_in_order = []
+              # list used queue names
+              STANDARD_QUEUES = ["CloudServices", "ContactCenterServices", "CyberSecurityService", "DataAndGenerative_AI", "EnterpriseManagement", "GeneralQuestions"]
+              CALL_BACK_QUEUES = ["DTMF_CALLBACK_CLOUD", "DTMF_CALLBACK_CONTACTCENTER", "DTMF_CALLBACK_CYBERSECURITY", "DTMF_CALLBACK_DATA_AI","DTMF_CALLBACK_ENTERPRISE_MANAGEMENT", "DTMF_CALLBACK_GENERAL"]
+              for queue in STANDARD_QUEUES:
+                  index = list_names.index(queue)
+                  extracted_standard_arn_in_order.append(list_arns[int(index)])
+              for queue in CALL_BACK_QUEUES:
+                  index = list_names.index(queue)
+                  extracted_callback_arn_in_order.append(list_arns[int(index)])
+              control = int(event['Details']['Parameters']['control4'])             # controls which arn to select based on parameter value
+              contact_attribute_name_to_use = ["SelectedQueue", "QUEUE_NUMBER", "lambda_invoked"]
+              selected_standard_arn = extracted_standard_arn_in_order[control]
+              update_contact_func(event,contact_attribute_name_to_use[0], selected_standard_arn)   # creates contact attribute for queue name selected
+              print(selected_standard_arn)
+              selected_callback_arn = extracted_callback_arn_in_order[control]
+              update_contact_func(event,contact_attribute_name_to_use[1], selected_callback_arn)   # creates contact attribute for queue name selected
+              print(selected_callback_arn)
+              update_contact_func(event,contact_attribute_name_to_use[2], 0)   # creates contact attribute for flow control
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+          def list_queues(event):
+              instance_id = connect_parameters(event)[1]     # gets the instance id
+              queue_names = []
+              queue_arn = []
+              queue_id = []
+              response = client.list_queues(
+                  InstanceId=f'{instance_id}',
+                  QueueTypes=['STANDARD'],
+                  MaxResults=123
+                  )
+              QueueList = response['QueueSummaryList']
+              queue_statistic = {}
+              for queue in QueueList:
+                  queue_names.append(queue['Name'])
+                  queue_arn.append(queue['Arn'])
+                  queue_id.append(queue['Id'])
+              return [queue_names,queue_arn,queue_id]
+          def connect_parameters(event):
+              arnn = event['Details']['ContactData']['InstanceARN']
+              instance_id = arnn[arnn.rfind('/') + 1 : len(arnn)]  # extracts the instance id
+              return [arnn, instance_id]
+  LambdaFunction3:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda3
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('translate')
+          client2 = boto3.client('connect')
+          client3 = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Edit environment variable for other languages
+              # Gets language code from environment variables
+              source_lang_code = os.environ.get('source_lang_code')
+              target_lang_code = os.environ.get('destination_lang_code')
+              data = text_to_translate(source_lang_code,target_lang_code)   # Translates given text in a list
+          # Creates contact Attributes for both languages
+              data_languages = data_to_translate_1()
+              lang_1_contact_attributes = data_languages[1]
+              lang_2_contact_attributes = data_languages[2]
+              # creates contact attributes for first language
+              language_control = event['Details']['Parameters']['language_control']
+              if data[0] == 1:
+                  index_1 = 0
+                  # creates contact attribute for first language
+                  for Att in lang_1_contact_attributes:
+                      if language_control == '1':
+                          text_value = data[1][index_1]
+                          updating1= update_contact_func(event,Att, text_value)
+                          index_1 += 1
+                  index_2 = 0
+              # creates contact attribute for second language
+                  for Att1 in lang_2_contact_attributes:
+                      if language_control == '2':
+                          text_value1 = data[2][index_2]
+                          updating1= update_contact_func(event,Att1, text_value1)
+                          index_2 += 1
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Success')
+              }
+          def data_to_translate_1():
+              # data from file to translate
+              # Number of attributes should match number of data
+              data =  ['Our Staff are currently busy or you called out of our hours of operation, To, receive a call on another number, enter 1, for this number, enter 2',"Please, enter your phone number."]
+              # contact attribute names can be edited for use case
+              lang1_contact_attributes = ["prompt_callback", "selectionn"]   # contact attribute name for language 1
+              lang2_contact_attributes = ["prompt_callback", "selectionn"]   # contact attribute name for language 2
+              if len(data) == len(lang1_contact_attributes) and len(data) == len(lang2_contact_attributes):
+                  return [data, lang1_contact_attributes, lang2_contact_attributes]
+          def text_to_translate(source_lang_code, target_lang_code):   # text_to_translate is a list of text
+              """
+              translates original text to target language
+              0: implies failure
+              1: implies success
+              """
+              original_text = data_to_translate_1()[0]  # list of text to be translated
+              translated_text = []
+              try:
+                  if len(original_text) == 0:
+                      return [0]
+                  elif len(original_text) > 0:
+                      for text in original_text:
+                          translation = compile_translation(text ,source_lang_code,target_lang_code)   # translates the text
+                          translated_text.append(translation)
+                      return [1, original_text, translated_text]
+              except ValueError:
+                  return [0]
+              except TypeError:
+                  return [0]
+          def compile_translation(text_to_translate_en,source_lang_code, target):
+              # Text translated from English to target language or languages.
+              translated_text = translate_text(source_lang_code,target , text_to_translate_en)['TranslatedText']
+              modified_text = f"{translated_text}"
+              return modified_text
+          def translate_text(source_lang_code, target_lang_code, text_to_translate):
+              "Translates from source language to destination language"
+              response = client.translate_text(
+              Text=f'{text_to_translate}',
+              SourceLanguageCode=f'{source_lang_code}',
+              TargetLanguageCode=f'{target_lang_code}',
+              Settings={
+                  'Formality': 'FORMAL',
+                  'Profanity': 'MASK',
+                  'Brevity': 'ON'})
+              return response
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client2.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+  LambdaFunction4:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda4
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('translate')
+          client2 = boto3.client('connect')
+          client3 = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Edit environment variable for other languages
+              # Gets language code from environment variables
+              source_lang_code = os.environ.get('source_lang_code')
+              target_lang_code = os.environ.get('destination_lang_code')
+              data = text_to_translate(source_lang_code, target_lang_code)   # Translates given text in a list
+          # Creates contact Attributes for both languages
+              data_languages = data_to_translate_1()
+              lang_1_contact_attributes = data_languages[1]
+              lang_2_contact_attributes = data_languages[2]
+              # creates contact attributes for first language
+              if data[0] == 1:
+                  index_1 = 0
+                  # creates contact attribute for first language
+                  for Att in lang_1_contact_attributes:
+                      text_value = data[1][index_1]
+                      updating1= update_contact_func(event,Att, text_value)
+                      index_1 += 1
+                  index_2 = 0
+              # creates contact attribute for second language
+                  for Att1 in lang_2_contact_attributes:
+                      text_value1 = data[2][index_2]
+                      updating1= update_contact_func(event,Att1, text_value1)
+                      index_2 += 1
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+          def data_to_translate_1():
+              # data from file to translate
+              # Number of attributes should match number of data
+              data = ['Enter 1 for English Language, 2 for French Language.', "An error occured, please try again later."]    # Data must always be a list
+              # contact attribute names can be edited for use case
+              lang1_contact_attributes = ["prompt1_eng", "prompt2_eng_error"]   # contact attribute name for language 1
+              lang2_contact_attributes = ["prompt1_fre", "prompt2_fre_error"]   # contact attribute name for language 2
+              if len(data) == len(lang1_contact_attributes) and len(data) == len(lang2_contact_attributes):
+                  return [data, lang1_contact_attributes, lang2_contact_attributes]
+          def text_to_translate(source_lang_code, target_lang_code):   # text_to_translate is a list of text
+              """
+              translates original text to target language
+              0: implies failure
+              1: implies success
+              """
+              original_text = data_to_translate_1()[0]  # list of text to be translated
+              translated_text = []
+              try:
+                  if len(original_text) == 0:
+                      return [0]
+                  elif len(original_text) > 0:
+                      for text in original_text:
+                          translation = compile_translation(text ,source_lang_code,target_lang_code)   # translates the text
+                          translated_text.append(translation)
+                      return [1, original_text, translated_text]
+              except ValueError:
+                  return [0]
+              except TypeError:
+                  return [0]
+          def compile_translation(text_to_translate_en,source_lang_code, target):
+              # Text translated from English to target language or languages.
+              translated_text = translate_text(source_lang_code,target , text_to_translate_en)['TranslatedText']
+              modified_text = f"{translated_text}"
+              return modified_text
+          def translate_text(source_lang_code, target_lang_code, text_to_translate):
+              "Translates from source language to destination language"
+              response = client.translate_text(
+              Text=f'{text_to_translate}',
+              SourceLanguageCode=f'{source_lang_code}',
+              TargetLanguageCode=f'{target_lang_code}',
+              Settings={
+                  'Formality': 'FORMAL',
+                  'Profanity': 'MASK',
+                  'Brevity': 'ON'})
+              return response
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client2.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+  LambdaFunction5:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda5
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('translate')
+          client2 = boto3.client('connect')
+          client3 = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Edit environment variable for other languages
+              # Gets language code from environment variables
+              source_lang_code = os.environ.get('source_lang_code')
+              target_lang_code = os.environ.get('destination_lang_code')
+              data = text_to_translate(source_lang_code,target_lang_code)   # Translates given text in a list
+          # Creates contact Attributes for both languages
+              data_languages = data_to_translate_1()
+              lang_1_contact_attributes = data_languages[1]
+              lang_2_contact_attributes = data_languages[2]
+              # creates contact attributes for first language
+              language_control = event['Details']['Parameters']['language_control']
+              if data[0] == 1:
+                  index_1 = 0
+                  # creates contact attribute for first language
+                  for Att in lang_1_contact_attributes:
+                      if language_control == '1':
+                          text_value = data[1][index_1]
+                          updating1= update_contact_func(event,Att, text_value)
+                          print("testing", language_control)
+                          index_1 += 1
+                  index_2 = 0
+              # creates contact attribute for second language
+                  for Att1 in lang_2_contact_attributes:
+                      if language_control == '2':
+                          text_value1 = data[2][index_2]
+                          updating1= update_contact_func(event,Att1, text_value1)
+                          index_2 += 1
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Success')
+              }
+          def data_to_translate_1():
+              # data from file to translate
+              # Number of attributes should match number of data
+              data =  ['is the phone number. To confirm, enter 1. for another Phone number, enter 2',"We will call you back."]
+              # contact attribute names can be edited for use case
+              lang1_contact_attributes = ["prompt_callback_2", "prompt_confirm"]   # contact attribute name for language 1
+              lang2_contact_attributes = ["prompt_callback", "selectionn"]   # contact attribute name for language 2
+              if len(data) == len(lang1_contact_attributes) and len(data) == len(lang2_contact_attributes):
+                  return [data, lang1_contact_attributes, lang2_contact_attributes]
+          def text_to_translate(source_lang_code, target_lang_code):   # text_to_translate is a list of text
+              """
+              translates original text to target language
+              0: implies failure
+              1: implies success
+              """
+              original_text = data_to_translate_1()[0]  # list of text to be translated
+              translated_text = []
+              try:
+                  if len(original_text) == 0:
+                      return [0]
+                  elif len(original_text) > 0:
+                      for text in original_text:
+                          translation = compile_translation(text ,source_lang_code,target_lang_code)   # translates the text
+                          translated_text.append(translation)
+                      return [1, original_text, translated_text]
+              except ValueError:
+                  return [0]
+              except TypeError:
+                  return [0]
+          def compile_translation(text_to_translate_en,source_lang_code, target):
+              # Text translated from English to target language or languages.
+              translated_text = translate_text(source_lang_code,target , text_to_translate_en)['TranslatedText']
+              modified_text = f"{translated_text}"
+              return modified_text
+          def translate_text(source_lang_code, target_lang_code, text_to_translate):
+              "Translates from source language to destination language"
+              response = client.translate_text(
+              Text=f'{text_to_translate}',
+              SourceLanguageCode=f'{source_lang_code}',
+              TargetLanguageCode=f'{target_lang_code}',
+              Settings={
+                  'Formality': 'FORMAL',
+                  'Profanity': 'MASK',
+                  'Brevity': 'ON'})
+              return response
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client2.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+  LambdaFunction6:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda6
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import botocore.exceptions
+          client = boto3.client('translate')
+          client2 = boto3.client('connect')
+          client3 = boto3.client('s3')
+          def lambda_handler(event, context):
+              # Edit environment variable for other languages
+              # Gets language code from environment variables
+              source_lang_code = os.environ.get('source_lang_code')
+              target_lang_code = os.environ.get('destination_lang_code')
+              data = text_to_translate(source_lang_code,target_lang_code)   # Translates given text in a list
+          # Creates contact Attributes for both languages
+              data_languages = data_to_translate_1()
+              lang_1_contact_attributes = data_languages[1]
+              lang_2_contact_attributes = data_languages[2]
+              # creates contact attributes for first language
+              language_control = event['Details']['Parameters']['language_control']
+              if data[0] == 1:
+                  index_1 = 0
+                  # creates contact attribute for first language
+                  for Att in lang_1_contact_attributes:
+                      if language_control == '1':
+                          text_value = data[1][index_1]
+                          updating1= update_contact_func(event,Att, text_value)
+                          index_1 += 1
+                  index_2 = 0
+              # creates contact attribute for second language
+                  for Att1 in lang_2_contact_attributes:
+                      if language_control == '2':
+                          text_value1 = data[2][index_2]
+                          updating1= update_contact_func(event,Att1, text_value1)
+                          index_2 += 1
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Success')
+              }
+          def data_to_translate_1():
+              # data from file to translate
+              # Number of attributes should match number of data
+              data =  ['Do you know InterVision offers IT and Cyber security services that can reduce costs, scale based on customer demands, and keep your resources safe?',"We encourage you to go to our website intervision.com, or call customer service to learn more."]
+              # contact attribute names can be edited for use case
+              lang1_contact_attributes = ["advert1", "advert2"]   # contact attribute name for language 1
+              lang2_contact_attributes = ["advert1", "advert2"]    # contact attribute name for language 2
+              if len(data) == len(lang1_contact_attributes) and len(data) == len(lang2_contact_attributes):
+                  return [data, lang1_contact_attributes, lang2_contact_attributes]
+          def text_to_translate(source_lang_code, target_lang_code):   # text_to_translate is a list of text
+              """
+              translates original text to target language
+              0: implies failure
+              1: implies success
+              """
+              original_text = data_to_translate_1()[0]  # list of text to be translated
+              translated_text = []
+              try:
+                  if len(original_text) == 0:
+                      return [0]
+                  elif len(original_text) > 0:
+                      for text in original_text:
+                          translation = compile_translation(text ,source_lang_code,target_lang_code)   # translates the text
+                          translated_text.append(translation)
+                      return [1, original_text, translated_text]
+              except ValueError:
+                  return [0]
+              except TypeError:
+                  return [0]
+          def compile_translation(text_to_translate_en,source_lang_code, target):
+              # Text translated from English to target language or languages.
+              translated_text = translate_text(source_lang_code,target , text_to_translate_en)['TranslatedText']
+              modified_text = f"{translated_text}"
+              return modified_text
+          def translate_text(source_lang_code, target_lang_code, text_to_translate):
+              "Translates from source language to destination language"
+              response = client.translate_text(
+              Text=f'{text_to_translate}',
+              SourceLanguageCode=f'{source_lang_code}',
+              TargetLanguageCode=f'{target_lang_code}',
+              Settings={
+                  'Formality': 'FORMAL',
+                  'Profanity': 'MASK',
+                  'Brevity': 'ON'})
+              return response
+          def update_contact_func(event, attribute, attribute_value):
+              """
+              creates or updates a contact attribute
+              """
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client2.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+              return response
+  LambdaFunction7:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda7
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          client = boto3.client('connect')
+          def lambda_handler(event, context):
+              #print(event)
+              update_contact_attributes(event)
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(f'Success.')
+              }
+          def questions():
+              questions_used = {
+                  'Q1' : ["How did you hear about us?<break time='0.5s'/>", ["Email <break time='0.5s'/>", "SMS <break time='0.5s'/>", "Internet advert <break time='0.5s'/>", "Press <break time='0.5s'/>", "Recommendation from an acquaintance <break time='0.5s'/>"]],
+                  'Q2' : ["What did you consult with InterVision? <break time='0.5s'/>", ["Account status <break time='0.5s'/>", "Investment Report <break time='0.5s'/>", "Benefit Information <break time='0.5s'/>", "Press <break time='0.5s'/>", "Information about Intervision <break time='0.5s'/>"]],
+                  'Q3' : ["How Long have you been a Customer with InterVision? <break time='0.5s'/>", ["1 Year <break time='0.5s'/>", " 2 years <break time='0.5s'/>", "3 or more years <break time='0.5s'/>"]],}
+              return questions_used
+          def update_contact_attributes(event):
+              questions_used = questions()
+              #  Attributes = {
+              #     'loop_control':event['Attributes']['loop_control'],
+              #     'questions': event['Attributes']['questions'],
+              #     'question_control_index': event['Attributes']['question_control_index']
+              # }
+              loop_index = int(event['Details']['ContactData']['Attributes']['loop_control'])
+              number_of_questions = len(questions_used)   # determines how many loops will be made.
+              answer_bank = []
+              question_number = []   # Holds the question number to be used
+              question_number.append(f"Q{loop_index}")
+              answer_bank.append(questions_used[question_number[0]][0])
+              for value in question_number:
+                  question_array = questions_used[f"{value}"][1]  # Extracts possible answers
+                  i = 1
+                  for data in question_array:
+                      answer_bank.append(f"{i},{data}")
+                      i += 1
+              question_presented =  '\n'.join((answer_bank))    # Question to be sent to the flow
+              if int(loop_index) <= number_of_questions:
+                  loop_index += 1
+                  update_contact_func(event,'loop_control', loop_index)
+                  update_contact_func(event, 'questions', question_presented)
+                  update_contact_func(event,'question_control_index', number_of_questions)
+          def update_contact_func(event, attribute, attribute_value):
+              attribute_name = attribute
+              data = event['Details']['ContactData']['InstanceARN']
+              extract_instance_id = data[data.rfind('/') + 1 : len(data)]  # extracts the instance id
+              response = client.update_contact_attributes(
+                  InitialContactId=event['Details']['ContactData']['InitialContactId'],
+                  InstanceId= f'{extract_instance_id}',
+                  Attributes={
+                      f'{attribute_name}': str(attribute_value) # updates stated attributes
+                      })
+  LambdaFunction8:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda8
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+              question_number = int(event['Details']['ContactData']['Attributes']['loop_control']) - 1
+              answer = event['Details']['Parameters']['answer_value']
+              value_to_be_saved = f'Q{question_number} : {answer}'
+              print(value_to_be_saved)
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+  LambdaFunction9:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda9
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          def lambda_handler(event, context):
+              verification_data = verification(event)
+              return {
+                  'selection': f'{verification_data[2]}',
+                  'verification': f'{verification_data[0]}',
+                  "employee_name": f'{verification_data[1]}'
+              }
+          def verification(event):
+              employee_data = employee_numbers()
+              selection = event['Details']['Parameters']['selection']
+              id_number = event['Details']['Parameters']['id_number']
+              if len(id_number) == 6:
+                  if id_number in employee_data[1]:
+                      index_id = employee_data[1].index(id_number)
+                      employee_name = employee_data[0][index_id]
+                      return [1, employee_name,selection]
+                  else:
+                      return [0,0,0]
+              elif len(id_number) != 6:
+                  return [2,0,0]
+          def employee_numbers():
+              employee = ["Cho Godwill", "Marc-Dariel Cho", "Marie Cho"]
+              employee_id = ["123456", "123465","123467"]
+              return [employee, employee_id]
+  LambdaFunction10:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: !FindInMap
+        - LambdaFunctionMap
+        - Lambda10
+        - FunctionName
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          destination_lang_code: !Ref destinationLangCode
+          source_lang_code: !Ref sourceLangCode
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          client = boto3.client('connect')
+          def lambda_handler(event, context):
+              phone_numbers = phone_number()
+              for number in phone_numbers:
+                  data = outbound_call(number)
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Success')
+              }
+          def outbound_call(phone_number):
+              data = campaign_data(phone_number)
+              outbound_name = data[0]
+              destination_number = data[1]
+              contact_flow_id = data[2]
+              instance_id = data[3]
+              queue_name = data[4]
+              campaign_id = data[5]
+              response = client.start_outbound_voice_contact(
+                  Name=f'{outbound_name}',
+                  DestinationPhoneNumber=f"{destination_number}",
+                  ContactFlowId=f"{contact_flow_id}",
+                  InstanceId=f"{instance_id}",
+                  QueueId=f'{queue_name}',
+                  CampaignId=f'{campaign_id}',
+                  TrafficType='GENERAL'
+                  )
+              return response
+          def campaign_data(phone_number):
+              outbound_name = "Banking_outbound_campaign"
+              destination_number = f"{phone_number}"
+              contact_flow_id = "bc850f4d-0c83-4919-a3af-350d74d839c5"
+              instance_id = "4f787401-0d6f-4200-86db-9d9e1862dd6e"
+              queue_name = "922683f0-b584-44ba-9238-d6ccb9b1c9d0"
+              campaign_id = "85048980-421e-4a32-b58a-b74e95fe0de2"
+              return [outbound_name,destination_number,contact_flow_id,instance_id,queue_name,campaign_id]
+          def phone_number():
+              list = ["+17373357652","+2107632342"]
+              return list

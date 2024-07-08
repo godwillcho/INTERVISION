@@ -1,0 +1,52 @@
+# Used for creating flows   INCOMPLETE
+
+Mappings:
+  InstanceMap:
+    Instance:
+      arn: arn:aws:connect:us-east-1:637882810458:instance/1977a052-4ed7-4aea-abec-449cf37da8bf
+      Content: |
+        {"Version":"2019-10-30","StartAction":"f7426478-639a-4b74-8ef4-1b268e41dc29","Metadata":{"entryPointPosition":{"x":40,"y":40},"ActionMetadata":{"09495047-3ea5-4cfe-9c56-a0622c73ba97":{"position":{"x":490.4,"y":112}},"f7426478-639a-4b74-8ef4-1b268e41dc29":{"position":{"x":208.8,"y":82.4},"parameters":{"LambdaFunctionARN":{"displayName":"intervision_call_back_function"}},"dynamicMetadata":{}}},"Annotations":[],"name":"","description":"","type":"contactFlow","status":"published","hash":{}},"Actions":[{"Parameters":{},"Identifier":"09495047-3ea5-4cfe-9c56-a0622c73ba97","Type":"DisconnectParticipant","Transitions":{}},{"Parameters":{"LambdaFunctionARN":"arn:aws:lambda:us-west-2:525618997575:function:intervision_call_back_function","InvocationTimeLimitSeconds":"3","ResponseValidation":{"ResponseType":"STRING_MAP"}},"Identifier":"f7426478-639a-4b74-8ef4-1b268e41dc29","Type":"InvokeLambdaFunction","Transitions":{"NextAction":"09495047-3ea5-4cfe-9c56-a0622c73ba97","Errors":[{"NextAction":"09495047-3ea5-4cfe-9c56-a0622c73ba97","ErrorType":"NoMatchingError"}]}}]}
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+        AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Description: Used in creating lambda functions
+        ManagedPolicyArns:
+            - arn:aws:iam::aws:policy/AmazonS3FullAccess
+            - arn:aws:iam::aws:policy/CloudWatchFullAccess
+            - arn:aws:iam::aws:policy/AmazonConnect_FullAccess
+            - arn:aws:iam::aws:policy/AmazonPollyFullAccess
+            - arn:aws:iam::aws:policy/TranslateFullAccess
+        RoleName: myRole_delete
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Description: Used to create a lambda function
+    Properties:
+      FunctionName: Cho_testing_functionn
+      Role: !GetAtt LambdaRole.Arn
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+            import json
+            def lambda_handler(event, context):
+                print("cho is a man")
+  ContactFlowNo1:
+    Type: AWS::Connect::ContactFlow
+    Properties:
+        Description: Testing
+        InstanceArn: !ImportValue InstanceArn
+        Name: Testing_flow1986
+        State: ACTIVE
+        Type: CONTACT_FLOW
+        Content: !FindInMap
+        - InstanceMap
+        - Instance
+        - Content
