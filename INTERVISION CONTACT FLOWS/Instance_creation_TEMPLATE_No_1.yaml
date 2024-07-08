@@ -1,0 +1,88 @@
+# This template creates an amazon conncet instance and linking it to different storage options
+Parameters:
+    InstanceLogicalName:
+        Type: String
+        Description: The alias of instance. InstanceAlias is only required when IdentityManagementType is CONNECT_MANAGED 
+        Default: InterVisionInstance
+    BucketName:
+        Type: String
+        Description: A unique bucket Identifier. Mandatory
+
+Mappings:
+    InstanceMap:
+        Properties:
+            AutoResolveBestVoices: True
+            ContactflowLogs: True
+            ContactLens: True
+            EarlyMedia: True
+            InboundCalls: True
+            OutboundCalls: True
+            UseCustomTTSVoices: True
+            IdentityManagementType: CONNECT_MANAGED
+Resources:
+    ConnectInstance:
+        Type: AWS::Connect::Instance
+        Properties:
+            Attributes: 
+                  AutoResolveBestVoices: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - AutoResolveBestVoices
+                  ContactflowLogs: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - ContactflowLogs
+                  ContactLens: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - AutoResolveBestVoices
+                  EarlyMedia: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - ContactLens
+                  InboundCalls: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - InboundCalls
+                  OutboundCalls: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - OutboundCalls
+                  UseCustomTTSVoices: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - UseCustomTTSVoices
+            IdentityManagementType: !FindInMap
+                    - InstanceMap
+                    - Properties
+                    - IdentityManagementType
+            InstanceAlias: !Ref InstanceLogicalName
+    Bucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Join [ -, [!Ref ConnectInstance, !Ref BucketName ] ]
+    # Stores different data into thesame Bucket
+    InstanceStorage1:
+        Type: AWS::Connect::InstanceStorageConfig
+        Properties:
+            InstanceArn: !Ref ConnectInstance
+            ResourceType: CALL_RECORDINGS
+            StorageType: S3
+    InstanceStorage2:
+        Type: AWS::Connect::InstanceStorageConfig
+        Properties:
+            InstanceArn: !Ref ConnectInstance
+            ResourceType: CHAT_TRANSCRIPTS
+            StorageType: S3
+    InstanceStorage3:
+        Type: AWS::Connect::InstanceStorageConfig
+        Properties:
+            InstanceArn: !Ref ConnectInstance
+            ResourceType: SCHEDULED_REPORTS
+            StorageType: S3
+Outputs:
+  InstanceArn:
+    Description: The The Instance Name
+    Value: !GetAtt ConnectInstance.Arn
+    Export:
+      Name: InstanceArn    # Exporting the Instance Arn for cross stack referencing.

@@ -1,0 +1,679 @@
+# This template creates the Queues, routing profiles etc
+
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  HoursOfOperationName:
+    Description: Name used in refering to the hours of operation.
+    Type: String
+    Default: IntervisionHoursOfOperation
+  TimeZone:
+    Description: Timezone where agents will be working.
+    Type: String
+    Default: Pacific/Midway
+    AllowedValues:
+      - Pacific/Midway
+      - US/Central
+      - GMT-1
+  StartTimeHours:
+    Description: Beginning of the day Hour
+    Type: Number
+    Default: 0
+    AllowedValues:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 20
+      - 21
+      - 22
+      - 23
+  StartTimeMinutes:
+    Description: Beginning of the day Minutes
+    Type: Number
+    Default: 0
+    AllowedValues:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 20
+      - 21
+      - 22
+      - 23
+      - 24
+      - 25
+      - 26
+      - 27
+      - 28
+      - 29
+      - 30
+      - 31
+      - 32
+      - 33
+      - 35
+      - 35
+      - 36
+      - 37
+      - 38
+      - 39
+      - 40
+      - 21
+      - 42
+      - 43
+      - 44
+      - 45
+      - 46
+      - 47
+      - 48
+      - 49
+      - 50
+      - 51
+      - 52
+      - 53
+      - 54
+      - 55
+      - 56
+      - 57
+      - 58
+      - 59
+  EndTimeHours:
+    Description: End of the day Hours
+    Type: Number
+    Default: 0
+    AllowedValues:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 20
+      - 21
+      - 22
+      - 23
+  EndTimeMinutes:
+    Description: End of the day Minutes
+    Type: Number
+    Default: 0
+    AllowedValues:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+      - 18
+      - 19
+      - 20
+      - 21
+      - 22
+      - 23
+      - 24
+      - 25
+      - 26
+      - 27
+      - 28
+      - 29
+      - 30
+      - 31
+      - 32
+      - 33
+      - 35
+      - 35
+      - 36
+      - 37
+      - 38
+      - 39
+      - 40
+      - 21
+      - 42
+      - 43
+      - 44
+      - 45
+      - 46
+      - 47
+      - 48
+      - 49
+      - 50
+      - 51
+      - 52
+      - 53
+      - 54
+      - 55
+      - 56
+      - 57
+      - 58
+      - 59
+  MaxContactInQueue:
+    Type: Number
+    Description: The maximum contact a Queue can hold at any given time. Should be an Integer
+    Default: 10
+  QueueStatus:
+    Type: String
+    Description: Should the Queue be enabled or not?
+    Default: 'ENABLED'
+    AllowedValues: ['ENABLED','DISABLED']
+  AgentAvailabilityTimerForQueues:
+    Type: String
+    Description: Whether agents with this routing profile will have their routing order calculated based on time since their last inbound contact or longest idle time.
+    Default: 'TIME_SINCE_LAST_ACTIVITY'
+    AllowedValues: ['TIME_SINCE_LAST_ACTIVITY', 'TIME_SINCE_LAST_INBOUND']
+  CrossChannelBehaviorVOICE:
+    Type: String
+    Description : Specifies the other channels that can be routed to an agent while handling their VOICE channel
+    Default: 'ROUTE_ANY_CHANNEL'
+    AllowedValues: 
+        - 'ROUTE_ANY_CHANNEL'
+        - 'ROUTE_CURRENT_CHANNEL_ONLY'
+  CrossChannelBehaviorCHAT:
+    Type: String
+    Description : Specifies the other channels that can be routed to an agent while handling their  CHAT channel
+    Default: 'ROUTE_ANY_CHANNEL'
+    AllowedValues: 
+        - 'ROUTE_ANY_CHANNEL'
+        - 'ROUTE_CURRENT_CHANNEL_ONLY'
+  CrossChannelBehaviorTASK:
+    Type: String
+    Description : Specifies the other channels that can be routed to an agent while handling their TASK channel
+    Default: 'ROUTE_ANY_CHANNEL'
+    AllowedValues: 
+        - 'ROUTE_ANY_CHANNEL'
+        - 'ROUTE_CURRENT_CHANNEL_ONLY'
+  MediaConcurrenciesVOICE:
+    Type: Number
+    Description: "The number of contacts that can be received simultaneously from VOICE channel."
+    Default: 1
+    AllowedValues: [1,2,3,4,5,6,7,8,9,10]    # This value can be adjusted based on Company policies.
+  MediaConcurrenciesCHAT:
+    Type: Number
+    Description: "The number of contacts that can be received simultaneously from CHAT channel."
+    Default: 1
+    AllowedValues: [1,2,3,4,5,6,7,8,9,10]    # This value can be adjusted based on Company policies.
+  MediaConcurrenciesTASK:
+    Type: Number
+    Description: "The number of contacts that can be received simultaneously from TASK channel."
+    Default: 1
+    AllowedValues: [1,2,3,4,5,6,7,8,9,10]    # This value can be adjusted based on Company policies.
+
+
+Mappings:
+  InstanceMap:
+    Instance2:
+      arn: ''
+  QueueMap:
+    QueueNo1:
+      Name: 'CloudServices'
+    QueueNo2:
+      Name: 'ContactCenterServices'
+    QueueNo3:
+      Name: 'CyberSecurityService'
+    QueueNo4:
+      Name: 'DataAndGenerative_AI'
+    QueueNo5:
+      Name: 'EnterpriseManagement'
+    QueueNo6:
+      Name: 'GeneralQuestions'
+  CallBackQueueMap:
+    QueueNo1:
+      Name: 'DTMF_CALLBACK_CLOUD'
+    QueueNo2:
+      Name: 'DTMF_CALLBACK_CONTACTCENTER'
+    QueueNo3:
+      Name: 'DTMF_CALLBACK_CYBERSECURITY'
+    QueueNo4:
+      Name: 'DTMF_CALLBACK_DATA_AI'
+    QueueNo5:
+      Name: 'DTMF_CALLBACK_ENTERPRISE_MANAGEMENT'
+    QueueNo6:
+      Name: 'DTMF_CALLBACK_GENERAL'
+  QueueConfigsDelayMap:
+    AdminProfile:
+        Delay: 1
+  QueueConfigsPriorityMap:
+    AdminProfile:
+        Priority: 1
+    
+
+  RoutingProfilENameMap:
+    RoutingProfileADMIN:
+        Name: "ADMIN_ROUTING_PROFILE"
+    RoutingProfileNo2:
+        Name: ""
+
+
+
+Resources:
+  # The hours of operation of the business. Can be modified for working week days only
+  HoursOfOperation:
+    Type: AWS::Connect::HoursOfOperation
+    Properties:
+      Name: !Ref HoursOfOperationName
+      Description: Contact Center Hours OF operation
+      InstanceArn: !ImportValue InstanceArn 
+      TimeZone: !Ref TimeZone
+      Config:
+        - Day: SUNDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: MONDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: TUESDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: WEDNESDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: THURSDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: FRIDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+        - Day: SATURDAY
+          EndTime:
+            Hours: !Ref EndTimeHours
+            Minutes: !Ref EndTimeMinutes
+          StartTime:
+            Hours: !Ref StartTimeHours
+            Minutes: !Ref StartTimeMinutes
+  
+  # Listing of Queues needed for the project
+  StandardQueueNo1:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo1
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+  StandardQueueNo2:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo2
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+  StandardQueueNo3:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo3
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+  StandardQueueNo4:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo4
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+  StandardQueueNo5:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo5
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+  StandardQueueNo6:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue Activitites activities like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - QueueMap
+        - QueueNo6
+        - Name    # The Name of the Queue. It should be a standard queue for receiving contacts and not callbacks
+      MaxContacts: !Ref MaxContactInQueue
+      Status: !Ref QueueStatus
+
+# Creates callback queues for different Standard Queues
+  StandardCallBackQueueNo1:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo1
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+  StandardCallBackQueueNo2:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo2
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+  StandardCallBackQueueNo3:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo3
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+  StandardCallBackQueueNo4:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo4
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+  StandardCallBackQueueNo5:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo5
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+  StandardCallBackQueueNo6:
+    Type: AWS::Connect::Queue
+    Properties:
+      Description: For agents knowleageable in the Queue activitites like troubleshooting, sales etc
+      HoursOfOperationArn: !GetAtt HoursOfOperation.HoursOfOperationArn
+      InstanceArn: !ImportValue InstanceArn 
+      Name: !FindInMap
+        - CallBackQueueMap
+        - QueueNo6
+        - Name    # The Name of the Queue. It should be a standard queue for receiving callbacks
+
+# Routing Profiles
+  RoutingProfileNo1:
+    Type: AWS::Connect::RoutingProfile
+    Properties:
+      Description: Admin Routing Profile. Handles all queues
+      Name: !FindInMap
+            - RoutingProfilENameMap
+            - RoutingProfileADMIN
+            - Name
+      AgentAvailabilityTimer: !Ref AgentAvailabilityTimerForQueues
+      DefaultOutboundQueueArn: !GetAtt StandardCallBackQueueNo6.QueueArn
+      InstanceArn: !ImportValue InstanceArn 
+      MediaConcurrencies: 
+        - Channel: 'VOICE'
+          Concurrency: !Ref MediaConcurrenciesVOICE    # can have a value between 1 and 10 inclusive
+          CrossChannelBehavior:
+            BehaviorType: !Ref CrossChannelBehaviorVOICE    # Another  is ROUTE_CURRENT_CHANNEL_ONLY
+        - Channel: 'CHAT'
+          Concurrency: !Ref MediaConcurrenciesCHAT    # can have a value between 1 and 10 inclusive
+          CrossChannelBehavior:
+            BehaviorType: !Ref CrossChannelBehaviorCHAT    # other  is ROUTE_CURRENT_CHANNEL_ONLY
+        - Channel: 'TASK'
+          Concurrency: !Ref MediaConcurrenciesTASK    # can have a value between 1 and 10 inclusive
+          CrossChannelBehavior:
+            BehaviorType: !Ref CrossChannelBehaviorTASK   # other  is ROUTE_CURRENT_CHANNEL_ONLY
+      QueueConfigs:
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo1.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo2.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo3.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo4.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo5.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardQueueNo6.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo1.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo2.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo3.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo4.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo5.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'VOICE'
+                QueueArn: !GetAtt StandardCallBackQueueNo6.QueueArn
+        -   Delay: !FindInMap
+            - QueueConfigsDelayMap
+            - AdminProfile
+            - Delay
+            Priority: !FindInMap
+            - QueueConfigsPriorityMap
+            - AdminProfile
+            - Priority
+            QueueReference: 
+                Channel: 'CHAT'
+                QueueArn: !GetAtt StandardQueueNo6.QueueArn
+ 
+
+
+
+  
+
+
+
+
+    
+    
